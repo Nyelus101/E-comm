@@ -1,0 +1,40 @@
+# ENV FILES
+.env
+.env.*
+!.env.example
+
+# PYTHON
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+.venv/
+venv/
+env/
+
+# NODE
+node_modules/
+.next/
+dist/
+build/
+coverage/
+
+# LOGS
+*.log
+
+# DOCKER
+docker-compose.override.yml
+
+# EDITORS
+.vscode/
+.idea/
+
+# CACHE
+.cache/
+pytest_cache/
+.mypy_cache/
+
+# OS FILES
+.DS_Store
+Thumbs.db
