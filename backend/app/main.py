@@ -2,36 +2,35 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.database import engine, Base
+import app.models  # noqa — registers all models with SQLAlchemy
 
-# Import all models so SQLAlchemy registers them with Base
-import app.models  # noqa: F401
+# Import routers
+from app.routers import auth, users
 
 app = FastAPI(
     title="Laptop Store API",
     description="Production e-commerce API for laptop retail",
     version="1.0.0",
-    docs_url="/docs",       # Swagger UI at http://localhost:8000/docs
-    redoc_url="/redoc",     # ReDoc UI at http://localhost:8000/redoc
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
-# CORS (Cross-Origin Resource Sharing) allows your Next.js frontend
-# running on localhost:3000 to call this API on localhost:8000.
-# Without this, the browser would block the requests.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.FRONTEND_URL, "http://localhost:3000"],
-    allow_credentials=True,      # Allows cookies/auth headers
-    allow_methods=["*"],         # GET, POST, PUT, DELETE, etc.
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── Routers ─────────────────────────────────────────────────────────────────
+# prefix="/api/v1" means all routes become /api/v1/auth/login, etc.
+# Versioning from day one — you can add /api/v2 later without breaking clients
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(users.router, prefix="/api/v1")
 
 
 @app.get("/health")
 def health_check():
-    """
-    Simple endpoint to confirm the API is running.
-    Used by Docker health checks and monitoring tools.
-    """
     return {"status": "healthy", "environment": settings.ENVIRONMENT}

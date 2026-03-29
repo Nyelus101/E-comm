@@ -17,8 +17,10 @@ alembic==1.13.3
 psycopg2-binary==2.9.9       # PostgreSQL driver
 
 # ─── Auth & Security ─────────────────────────
-python-jose[cryptography]==3.3.0   # JWT tokens
-passlib[bcrypt]==1.7.4             # Password hashing
+# python-jose[cryptography]==3.3.0   # JWT tokens
+# passlib[bcrypt]==1.7.4             # Password hashing
+bcrypt==4.2.0
+PyJWT==2.9.0
 python-multipart==0.0.12           # File uploads
 
 # ─── Validation ──────────────────────────────
@@ -27,7 +29,7 @@ pydantic-settings==2.5.2           # Settings from .env
 
 # ─── Email ───────────────────────────────────
 # resend==2.4.0
-mailersend==0.5.2
+mailersend==0.5.8
 
 # ─── Image Storage ───────────────────────────
 cloudinary==1.41.0
@@ -40,3 +42,8 @@ redis==5.1.1
 
 # ─── HTTP Client (for external APIs) ─────────
 httpx==0.27.2
+
+
+email-validator==2.0.0
+
+python-slugify==8.0.4

@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     EMAIL_PROVIDER: str = "mailersend"  # "resend" or "smtp"
 
     MAILERSEND_API_KEY: str = ""
-    FROM_EMAIL: str = "noreply@yourdomain.com"
+    FROM_EMAIL: str = ""
     FROM_NAME: str = "Laptop Store"
 
     # ─── Cloudinary ──────────────────────────────────────────
