@@ -5,7 +5,7 @@ from app.config import settings
 import app.models  # noqa — registers all models with SQLAlchemy
 
 # Import routers
-from app.routers import auth, users
+from app.routers import auth, users, products, admin, cart, orders
 
 app = FastAPI(
     title="Laptop Store API",
@@ -29,6 +29,11 @@ app.add_middleware(
 # Versioning from day one — you can add /api/v2 later without breaking clients
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(products.router, prefix="/api/v1")     
+app.include_router(admin.router, prefix="/api/v1")
+app.include_router(cart.router, prefix="/api/v1")
+app.include_router(orders.router, prefix="/api/v1")   # no extra prefix — has /checkout, /webhooks, /orders
+
 
 
 @app.get("/health")

@@ -51,11 +51,11 @@ class Order(Base):
 
     # ─── Paystack ────────────────────────────────────────────
     # Paystack generates these when payment is initialized and verified
-    paystack_reference = Column(String(255), nullable=True, unique=True)
+    paystack_reference = Column(String(255), nullable=True, unique=True, index=True)
     # The reference is generated when you initialize a transaction.
     # It's what you use to verify payment after the customer pays.
 
-    paystack_transaction_id = Column(String(255), nullable=True)
+    # paystack_transaction_id = Column(String(255), nullable=True)
     # Paystack's internal transaction ID — returned after successful payment verification.
     # Useful for reconciliation and refunds from the dashboard.
 
