@@ -1,0 +1,64 @@
+/* frontend/app/globals.css */
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* ── Brand palette ── */
+  --ink: #0f0f0f;
+  --ink-soft: #1c1c1c;
+  --ink-muted: #2a2a2a;
+  --surface: #f5f3ef;
+  --surface-alt: #ede9e3;
+  --amber: #e8a030;
+  --amber-dark: #c47f18;
+  --amber-light: #ffd97a;
+  --white: #fafaf8;
+
+  /* ── Typography ── */
+  --font-display: 'Syne', sans-serif;   /* headings — geometric, confident */
+  --font-body: 'DM Sans', sans-serif;   /* body — warm, readable */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* ── Utility classes ── */
+@layer utilities {
+  .font-display { font-family: var(--font-display); }
+  .font-body    { font-family: var(--font-body); }
+
+  /* Amber underline accent used on headings */
+  .accent-underline {
+    text-decoration: underline;
+    text-decoration-color: var(--amber);
+    text-underline-offset: 6px;
+    text-decoration-thickness: 3px;
+  }
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: #c0bbb2; border-radius: 3px; }

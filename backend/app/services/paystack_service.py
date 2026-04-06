@@ -159,7 +159,7 @@ def verify_webhook_signature(payload_bytes: bytes, paystack_signature: str) -> b
     paystack_signature: the value of the x-paystack-signature header
     """
     computed = hmac.new(
-        settings.PAYSTACK_WEBHOOK_SECRET.encode("utf-8"),
+        settings.PAYSTACK_SECRET_KEY.encode("utf-8"),
         payload_bytes,
         hashlib.sha512,
     ).hexdigest()
