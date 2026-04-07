@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # ─── Elasticsearch ────────────────────────────────────────
+    ELASTICSEARCH_URL: str = "http://elasticsearch:9200"
+    SEARCH_CACHE_TTL: int = 300   # 5 minutes
+
     class Config:
         env_file = ".env"           # Reads from backend/.env
         case_sensitive = True

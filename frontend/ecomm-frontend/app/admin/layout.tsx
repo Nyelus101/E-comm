@@ -3,10 +3,7 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  LayoutDashboard, Package, ShoppingBag,
-  MessageSquare, Users, Laptop, LogOut
-} from 'lucide-react'
+import { LayoutDashboard, Package, ShoppingBag, MessageSquare, Laptop, LogOut, Search } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +12,7 @@ const NAV_ITEMS = [
   { href: '/admin/products', icon: Package,         label: 'Products'  },
   { href: '/admin/orders',   icon: ShoppingBag,     label: 'Orders'    },
   { href: '/admin/reviews',  icon: MessageSquare,   label: 'Reviews'   },
+  { href: '/admin/search', icon: Search, label: 'Search analytics' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

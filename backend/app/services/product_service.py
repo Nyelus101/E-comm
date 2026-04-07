@@ -14,6 +14,7 @@ from app.models.review import Review
 from app.models.user import User
 from app.schemas.product import ProductCreate, ProductUpdate, StockUpdate, ReviewCreate
 from app.services.cloudinary_service import upload_multiple_images, delete_product_image
+from app.services.elasticsearch_service import ( index_product, delete_product_from_index )
 from app.config import settings
 
 # Redis client — same pattern as auth
@@ -119,9 +120,9 @@ async def create_product(
     db.add(product)
     db.commit()
     db.refresh(product)
-
     # Clear all list caches so the new product appears in results
     _invalidate_product_cache()
+    index_product(product)          # sync to ES
 
     return product
 
@@ -172,6 +173,8 @@ async def update_product(
     )
     if product.slug != old_slug:
         _invalidate_product_cache(slug=product.slug)
+    
+    index_product(product)          # sync updated fields to ES
 
     return product
 
@@ -298,6 +301,7 @@ async def delete_product(product_id: UUID, db: Session) -> None:
 
     _invalidate_product_cache(product_id=product_id_str, slug=slug)
 
+    delete_product_from_index(product_id_str)   # remove from ES
 
 # ─── Admin: Stock update ──────────────────────────────────────────────────────
 
@@ -313,6 +317,8 @@ def update_stock(product_id: UUID, data: StockUpdate, db: Session) -> Product:
     db.commit()
     db.refresh(product)
     _invalidate_product_cache(product_id=str(product.id), slug=product.slug)
+
+    index_product(product)          # stock change affects is_available in ES
 
     return product
 
