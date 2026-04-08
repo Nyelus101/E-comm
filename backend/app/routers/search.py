@@ -12,6 +12,13 @@ from app.dependencies import get_current_admin
 from app.models.user import User
 from app.config import settings
 
+from app.services.ai_search_service import run_ai_search
+from app.services.embedding_service import embed_all_products
+from pydantic import BaseModel
+
+class AISearchRequest(BaseModel):
+    query: str
+
 router = APIRouter(tags=["Search"])
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
@@ -141,3 +148,61 @@ def reindex(
     from app.services.elasticsearch_service import reindex_all_products
     count = reindex_all_products(db)
     return {"message": f"Successfully indexed {count} products."}
+
+
+
+
+
+
+
+
+
+
+
+
+
+@router.post("/search/ai", summary="AI-powered natural language search")
+async def ai_search(
+    request: AISearchRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Natural language search powered by Claude + pgvector + Elasticsearch.
+
+    Send a plain English query and receive:
+    - Ranked laptop results merged from vector similarity and keyword search
+    - AI explanation for why each laptop matches your query
+    - Summary of what was found
+
+    Examples:
+    - {"query": "gaming laptop under ₦400,000 with RTX GPU"}
+    - {"query": "lightweight laptop for a computer science student"}
+    - {"query": "best laptop for video editing under ₦600k"}
+    - {"query": "cheap laptop for browsing and office work"}
+    """
+    if not request.query.strip():
+        return {
+            "query": "",
+            "summary": "Please enter a search query.",
+            "items": [],
+            "total": 0,
+            "source": "ai_hybrid",
+        }
+
+    return await run_ai_search(query=request.query.strip(), db=db)
+
+
+@router.post(
+    "/admin/search/embed-all",
+    summary="Generate embeddings for all products (admin)",
+)
+async def embed_all(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin),
+):
+    """
+    Generates vector embeddings for all products that don't have one.
+    Run this once after upgrading to Phase 7 to embed existing products.
+    """
+    count = await embed_all_products(db)
+    return {"message": f"Generated embeddings for {count} products."}

@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     ELASTICSEARCH_URL: str = "http://elasticsearch:9200"
     SEARCH_CACHE_TTL: int = 300   # 5 minutes
 
+    # ─── Model ────────────────────────────────────────
+    # ANTHROPIC_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+    # ANTHROPIC_API_KEY: str = ""
+    VOYAGE_API_KEY: str = ""
+    AI_SEARCH_CACHE_TTL: int = 3600
+
     class Config:
         env_file = ".env"           # Reads from backend/.env
         case_sensitive = True

@@ -5,6 +5,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 from app.database import Base
+from pgvector.sqlalchemy import Vector
 
 
 class Product(Base):
@@ -67,6 +68,11 @@ class Product(Base):
     order_items = relationship("OrderItem", back_populates="product")
     cart_items = relationship("CartItem", back_populates="product")
     reviews = relationship("Review", back_populates="product")
+
+
+    # 1024 = Voyage AI's voyage-2 embedding dimension
+    embedding = Column(Vector(1024), nullable=True)
+    # nullable=True — products created before AI phase have no embedding yet
 
     def __repr__(self):
         return f"<Product {self.name} ${self.price}>"

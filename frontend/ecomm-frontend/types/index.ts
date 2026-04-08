@@ -112,3 +112,40 @@ export interface ProductFilters {
   is_featured?: boolean
   sort_by?: string
 }
+
+
+
+
+export interface AISearchResult {
+  id: string
+  name: string
+  brand: string
+  slug: string
+  price: string
+  original_price?: string
+  thumbnail_url?: string
+  cpu: string
+  ram_gb: number
+  storage_gb: number
+  gpu?: string
+  is_available: boolean
+  is_featured: boolean
+  ai_explanation: string
+  rrf_score: number
+}
+
+export interface AISearchResponse {
+  query: string
+  summary: string
+  items: AISearchResult[]
+  total: number
+  parsed_intent: {
+    budget_max?: number
+    use_cases?: string[]
+    gpu_required?: boolean
+    min_ram?: number
+    user_context?: string
+  }
+  source: string
+  from_cache: boolean
+}

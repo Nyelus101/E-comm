@@ -15,6 +15,7 @@ from app.models.user import User
 from app.schemas.product import ProductCreate, ProductUpdate, StockUpdate, ReviewCreate
 from app.services.cloudinary_service import upload_multiple_images, delete_product_image
 from app.services.elasticsearch_service import ( index_product, delete_product_from_index )
+from app.services.embedding_service import embed_and_store_product
 from app.config import settings
 
 # Redis client — same pattern as auth
@@ -123,6 +124,7 @@ async def create_product(
     # Clear all list caches so the new product appears in results
     _invalidate_product_cache()
     index_product(product)          # sync to ES
+    await embed_and_store_product(product, db)
 
     return product
 
@@ -175,6 +177,7 @@ async def update_product(
         _invalidate_product_cache(slug=product.slug)
     
     index_product(product)          # sync updated fields to ES
+    await embed_and_store_product(product, db)
 
     return product
 
