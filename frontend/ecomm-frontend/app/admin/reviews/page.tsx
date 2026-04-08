@@ -14,13 +14,25 @@ export default function AdminReviewsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-reviews', filter],
+    // queryFn: async () => {
+    //   const params = filter === 'pending'
+    //     ? '?pending_only=true'
+    //     : filter === 'approved'
+    //       ? '?approved_only=true'
+    //       : ''
+    //   const { data } = await api.get(`/admin/reviews${params}&page_size=100`)
+    //   return data
+    // },
+    // Change the queryFn:
     queryFn: async () => {
-      const params = filter === 'pending'
-        ? '?pending_only=true'
-        : filter === 'approved'
-          ? '?approved_only=true'
-          : ''
-      const { data } = await api.get(`/admin/reviews${params}&page_size=100`)
+      // 'all' means no filter param — don't send anything to the backend
+      const params = new URLSearchParams()
+      params.set('page_size', '100')
+      if (filter === 'pending')  params.set('pending_only',  'true')
+      if (filter === 'approved') params.set('approved_only', 'true')
+      // 'all' → no extra params, backend returns everything
+
+      const { data } = await api.get(`/admin/reviews?${params}`)
       return data
     },
   })

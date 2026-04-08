@@ -648,7 +648,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
-  Search, SlidersHorizontal, X, Zap, AlignLeft,
+  AlertCircle, Search, SlidersHorizontal, X, Zap, AlignLeft,
   Loader2, Star, ArrowRight, Sparkles
 } from 'lucide-react'
 import Image from 'next/image'
@@ -1061,6 +1061,16 @@ export default function ProductsPage() {
                 </div>
               </div>
 
+              {/* // In the results section of the AI search UI, before the result cards: */}
+              {/* {aiResults.fallback_used && (
+                <div className="flex gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-5 py-4">
+                  <AlertCircle size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="font-body text-sm text-blue-700 leading-relaxed">
+                    {aiResults.summary.split('.')[0]}.
+                  </p>
+                </div>
+              )} */}
+
               {/* Result cards */}
               {aiResults.items.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-3xl border border-surface-dark">
@@ -1165,12 +1175,52 @@ function AIResultCard({ item, rank }: { item: AISearchResult; rank: number }) {
           </div>
 
           {/* AI explanation */}
-          {item.ai_explanation && (
+          {/* {item.ai_explanation && (
             <div className="flex gap-2.5 bg-amber-pale rounded-xl px-4 py-3">
               <Sparkles size={14} className="text-amber-dark flex-shrink-0 mt-0.5" />
               <p className="font-body text-sm text-ink-muted leading-relaxed">
                 {item.ai_explanation}
               </p>
+            </div>
+          )} */}
+
+          {/* // In AIResultCard, replace the AI explanation div with this: */}
+          {item.ai_explanation && (
+            <div className={`flex gap-2.5 rounded-xl px-4 py-3 ${
+              item.match_quality === 'exact'
+                ? 'bg-green-50 border border-green-100'
+                : item.match_quality === 'close'
+                  ? 'bg-amber-pale border border-amber/20'
+                  : 'bg-surface border border-surface-dark'
+            }`}>
+              <Sparkles
+                size={14}
+                className={`flex-shrink-0 mt-0.5 ${
+                  item.match_quality === 'exact'
+                    ? 'text-green-500'
+                    : item.match_quality === 'close'
+                      ? 'text-amber-dark'
+                      : 'text-ink-faint'
+                }`}
+              />
+              <div>
+                {item.match_quality && (
+                  <span className={`text-xs font-body font-500 mb-1 block ${
+                    item.match_quality === 'exact'
+                      ? 'text-green-600'
+                      : item.match_quality === 'close'
+                        ? 'text-amber-dark'
+                        : 'text-ink-faint'
+                  }`}>
+                    {item.match_quality === 'exact' ? 'Exact match'
+                      : item.match_quality === 'close' ? 'Close match'
+                      : 'Alternative suggestion'}
+                  </span>
+                )}
+                <p className="font-body text-sm text-ink-muted leading-relaxed">
+                  {item.ai_explanation}
+                </p>
+              </div>
             </div>
           )}
 

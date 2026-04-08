@@ -131,6 +131,7 @@ export interface AISearchResult {
   is_available: boolean
   is_featured: boolean
   ai_explanation: string
+  match_quality:  'exact' | 'close' | 'alternative'
   rrf_score: number
 }
 
@@ -148,4 +149,5 @@ export interface AISearchResponse {
   }
   source: string
   from_cache: boolean
+  fallback_used: boolean
 }

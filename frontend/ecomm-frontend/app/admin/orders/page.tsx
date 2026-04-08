@@ -32,9 +32,16 @@ export default function AdminOrdersPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-orders', statusFilter],
+    // queryFn: async () => {
+    //   const params = statusFilter ? `?status_filter=${statusFilter}` : ''
+    //   const { data } = await api.get(`/admin/orders${params}&page_size=100`)
+    //   return data
+    // },
+    // Change the queryFn:
     queryFn: async () => {
-      const params = statusFilter ? `?status_filter=${statusFilter}` : ''
-      const { data } = await api.get(`/admin/orders${params}&page_size=100`)
+      // Only append the param when a real status is selected
+      const params = statusFilter ? `?status_filter=${statusFilter}&page_size=100` : '?page_size=100'
+      const { data } = await api.get(`/admin/orders${params}`)
       return data
     },
   })
