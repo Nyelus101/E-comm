@@ -29,7 +29,8 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     // _retry flag prevents infinite loops
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/refresh')
+    ) {
       originalRequest._retry = true
 
       try {
@@ -52,7 +53,10 @@ api.interceptors.response.use(
         // Refresh failed — clear tokens and redirect to login
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        window.location.href = '/login'
+        // window.location.href = '/login'
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
       }
     }
 

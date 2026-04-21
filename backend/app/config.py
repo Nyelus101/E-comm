@@ -51,9 +51,19 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     FRONTEND_URL: str = "http://localhost:3000"
 
-    # ─── Elasticsearch ────────────────────────────────────────
-    ELASTICSEARCH_URL: str = "http://elasticsearch:9200"
-    SEARCH_CACHE_TTL: int = 300   # 5 minutes
+    # # ─── Elasticsearch ────────────────────────────────────────
+    # ELASTICSEARCH_URL: str = "http://elasticsearch:9200"
+    # SEARCH_CACHE_TTL: int = 300   # 5 minutes
+
+
+    # ─── Typesense ────────────────────────────────────────────────────────────
+    # Replaces ELASTICSEARCH_URL
+    TYPESENSE_HOST:     str = "typesense"
+    TYPESENSE_PORT:     int = 8108
+    TYPESENSE_PROTOCOL: str = "http"
+    TYPESENSE_API_KEY:  str = ""
+    SEARCH_CACHE_TTL:   int = 300   # (Typesense doesn't have built-in caching, so we use Redis TTL)
+
 
     # ─── Model ────────────────────────────────────────
     # ANTHROPIC_API_KEY: str = ""

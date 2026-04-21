@@ -11,7 +11,7 @@ from app.schemas.product import ReviewResponse
 from app.database import get_db
 from app.dependencies import get_current_admin
 from app.models.user import User
-from app.schemas.product import ProductUpdate, StockUpdate
+from app.schemas.product import ProductUpdate, StockUpdate, ProductResponse
 from app.services import product_service
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 @router.post(
     "/products",
     status_code=status.HTTP_201_CREATED,
+    response_model=ProductResponse,
     summary="Create a product (admin)",
 )
 async def create_product(
@@ -92,6 +93,7 @@ async def create_product(
 
 @router.put(
     "/products/{product_id}",
+    response_model=ProductResponse,
     summary="Update a product (admin)",
 )
 async def update_product(
@@ -107,7 +109,7 @@ async def update_product(
     return await product_service.update_product(product_id, data, db)
 
 
-@router.post( "/products/{product_id}/images", summary="Add images to a product (admin)" )
+@router.post( "/products/{product_id}/images", response_model=ProductResponse, summary="Add images to a product (admin)" )
 async def add_images(
     product_id: UUID,
     images: List[UploadFile] = File(..., description="Select up to 5 images at once. Repeat the 'images' key for each file in form-data."),
@@ -129,6 +131,7 @@ async def add_images(
 
 @router.delete(
     "/products/{product_id}/images",
+    response_model=ProductResponse,
     summary="Remove an image from a product (admin)",
 )
 async def remove_image(
@@ -147,6 +150,7 @@ async def remove_image(
 
 @router.patch(
     "/products/{product_id}/stock",
+    response_model=ProductResponse,
     summary="Update stock quantity (admin)",
 )
 def update_stock(
@@ -327,6 +331,7 @@ def _review_to_dict(review: Review, db: Session) -> dict:
     return {
         "id": str(review.id),
         "product_id": str(review.product_id),
+        "product_name": review.product.name if review.product else "Deleted product",
         "user_id": str(review.user_id),
         "reviewer_name": f"{user.first_name} {user.last_name}" if user else "Deleted user",
         "reviewer_email": user.email if user else None,

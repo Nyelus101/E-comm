@@ -1,5 +1,5 @@
 # backend/app/services/product_service.py
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_, func
 from fastapi import HTTPException, status, UploadFile
 from uuid import UUID
@@ -12,10 +12,12 @@ from slugify import slugify
 from app.models.product import Product
 from app.models.review import Review
 from app.models.user import User
-from app.schemas.product import ProductCreate, ProductUpdate, StockUpdate, ReviewCreate
+from app.schemas.product import ProductCreate, ProductUpdate, StockUpdate, ReviewCreate, ProductResponse
 from app.services.cloudinary_service import upload_multiple_images, delete_product_image
-from app.services.elasticsearch_service import ( index_product, delete_product_from_index )
-from app.services.embedding_service import embed_and_store_product
+# from app.services.elasticsearch_service import ( index_product, delete_product_from_index )
+from app.services.typesense_service import ( index_product, delete_product_from_index )
+# ── AI/embedding sync — disabled until AI search is re-enabled ────────────────
+# from app.services.embedding_service import embed_and_store_product
 from app.config import settings
 
 # Redis client — same pattern as auth
@@ -123,8 +125,16 @@ async def create_product(
     db.refresh(product)
     # Clear all list caches so the new product appears in results
     _invalidate_product_cache()
-    index_product(product)          # sync to ES
-    await embed_and_store_product(product, db)
+    # Generate embedding, store in pgvector, then index into Typesense WITH embedding
+    # embedding = await embed_and_store_product(product, db)
+    # index_product(product, embedding)   # passes embedding to avoid double generation
+    # await embed_and_store_product(product, db)
+
+    # In create_product(), remove:
+    # embedding = await embed_and_store_product(product, db)
+    # index_product(product, embedding)
+    # Replace with:
+    index_product(product)   # no embedding until AI search is re-enabled
 
     return product
 
@@ -176,8 +186,9 @@ async def update_product(
     if product.slug != old_slug:
         _invalidate_product_cache(slug=product.slug)
     
-    index_product(product)          # sync updated fields to ES
-    await embed_and_store_product(product, db)
+    # embedding = await embed_and_store_product(product, db)
+    # index_product(product, embedding)
+    index_product(product)   # no embedding until AI search is re-enabled
 
     return product
 
@@ -304,7 +315,9 @@ async def delete_product(product_id: UUID, db: Session) -> None:
 
     _invalidate_product_cache(product_id=product_id_str, slug=slug)
 
-    delete_product_from_index(product_id_str)   # remove from ES
+
+    delete_product_from_index(slug)     # slug is the Typesense document id
+    # delete_product_from_index(product_id_str)   # remove from ES
 
 # ─── Admin: Stock update ──────────────────────────────────────────────────────
 
@@ -549,6 +562,7 @@ def get_product_reviews(product_id: UUID, db: Session) -> list:
     """
     reviews = (
         db.query(Review)
+        .options(joinedload(Review.user))
         .filter(
             Review.product_id == product_id,
             Review.is_approved == True,

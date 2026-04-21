@@ -645,11 +645,11 @@
 
 // frontend/app/products/page.tsx
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   AlertCircle, Search, SlidersHorizontal, X, Zap, AlignLeft,
-  Loader2, Star, ArrowRight, Sparkles
+  Loader2, Star, ArrowRight, Sparkles, ChevronLeft
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -660,6 +660,7 @@ import { formatPrice } from '@/lib/utils'
 import { AISearchResponse, AISearchResult } from '@/types'
 
 import { useCartStore } from '@/store/cartStore'
+import { useRouter } from 'next/navigation'
 
 const SORT_OPTIONS = [
   { value: 'relevance',  label: 'Most relevant'     },
@@ -682,6 +683,7 @@ const AI_EXAMPLES = [
 type SearchMode = 'standard' | 'ai'
 
 export default function ProductsPage() {
+  const router = useRouter()
   // ── Mode ──────────────────────────────────────────────────────────────────
   const [searchMode, setSearchMode] = useState<SearchMode>('standard')
 
@@ -698,6 +700,38 @@ export default function ProductsPage() {
   const [gpuKeyword,      setGpuKeyword]      = useState('')
   const [isFeatured,      setIsFeatured]      = useState(false)
 
+  // Debounce timer ref
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+
+
+  // Fire search after 800ms of no typing, clear results immediately on wipe
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    setSearchInput(value)
+
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    // If user wiped the input completely, clear results immediately
+    if (value === '') {
+      setCommittedQuery('')
+      setPage(1)
+      return
+    }
+
+    // Otherwise debounce — fire after 800ms of inactivity
+    debounceRef.current = setTimeout(() => {
+      setCommittedQuery(value)
+      setPage(1)
+    }, 800)
+  }
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [])
+
   // ── AI search state ───────────────────────────────────────────────────────
   const [aiInput,         setAiInput]         = useState('')
   const [aiResults,       setAiResults]       = useState<AISearchResponse | null>(null)
@@ -705,6 +739,7 @@ export default function ProductsPage() {
   const hasActiveFilters = !!(brand || minPrice || maxPrice || minRam || gpuKeyword || isFeatured)
 
   const clearFilters = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     setBrand(''); setMinPrice(''); setMaxPrice('')
     setMinRam(''); setGpuKeyword(''); setIsFeatured(false)
     setCommittedQuery(''); setSearchInput(''); setPage(1)
@@ -712,6 +747,7 @@ export default function ProductsPage() {
 
   const handleStandardSearch = (e: React.FormEvent) => {
     e.preventDefault()
+    if (debounceRef.current) clearTimeout(debounceRef.current)
     setCommittedQuery(searchInput)
     setPage(1)
   }
@@ -763,7 +799,7 @@ export default function ProductsPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
 
       {/* Header */}
-      <div className="mb-8">
+      {/* <div className="mb-8">
         <h1 className="font-display font-700 text-4xl text-ink mb-2">All Laptops</h1>
         <p className="font-body text-ink-faint">
           {searchMode === 'standard' && stdData
@@ -772,6 +808,25 @@ export default function ProductsPage() {
               ? `${aiResults.total} AI recommendations`
               : 'Search our catalogue'}
         </p>
+      </div> */}
+      <div className="flex items-center gap-4 mb-8">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center justify-center w-9 h-9 rounded-xl border border-surface-dark bg-white hover:bg-surface-alt hover:border-ink/20 transition-all flex-shrink-0"
+          aria-label="Go back"
+        >
+          <ChevronLeft size={18} className="text-ink-faint" />
+        </button>
+        <div>
+          <h1 className="font-display font-700 text-4xl text-ink mb-1">All Laptops</h1>
+          <p className="font-body text-ink-faint text-sm">
+            {searchMode === 'standard' && stdData
+              ? `${stdData.total} laptops found`
+              : searchMode === 'ai' && aiResults
+                ? `${aiResults.total} AI recommendations`
+                : 'Search our catalogue'}
+          </p>
+        </div>
       </div>
 
       {/* ── Mode toggle ───────────────────────────────────────────────────── */}
@@ -815,7 +870,7 @@ export default function ProductsPage() {
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint" />
                 <input
                   value={searchInput}
-                  onChange={e => setSearchInput(e.target.value)}
+                  onChange={handleSearchInputChange}  //{/*{e => setSearchInput(e.target.value)}*/}
                   placeholder="Search laptops, brands, specs..."
                   className="w-full pl-10 pr-4 py-3 rounded-xl border border-surface-dark bg-white font-body text-sm focus:outline-none focus:ring-2 focus:ring-amber"
                 />
@@ -909,7 +964,7 @@ export default function ProductsPage() {
                   {committedQuery && <span> for <span className="font-500 text-ink">"{committedQuery}"</span></span>}
                 </p>
                 <span className="text-xs font-body text-ink-faint bg-surface-alt px-2.5 py-1 rounded-full border border-surface-dark">
-                  Powered by Elasticsearch
+                  Powered by Typesense
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -932,11 +987,11 @@ export default function ProductsPage() {
       {/* ════════════════════════════════════════════════════════════════════
           AI SEARCH UI
       ════════════════════════════════════════════════════════════════════ */}
-      {searchMode === 'ai' && (
-        <div className="flex flex-col gap-8">
+      {/* {searchMode === 'ai' && (
+        <div className="flex flex-col gap-8"> */}
 
           {/* AI search input */}
-          <div className="bg-ink rounded-3xl p-8">
+          {/* <div className="bg-ink rounded-3xl p-8">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 bg-amber rounded-xl flex items-center justify-center flex-shrink-0">
                 <Sparkles size={20} color="#0f0f0f" />
@@ -949,10 +1004,10 @@ export default function ProductsPage() {
                   Describe what you need and our AI will find the best matches
                 </p>
               </div>
-            </div>
+            </div> */}
 
             {/* Input */}
-            <div className="flex gap-3 mb-5">
+            {/* <div className="flex gap-3 mb-5">
               <div className="relative flex-1">
                 <Zap
                   size={16}
@@ -978,10 +1033,10 @@ export default function ProductsPage() {
                 )}
                 {aiMutation.isPending ? 'Searching...' : 'Search'}
               </button>
-            </div>
+            </div> */}
 
             {/* Example queries */}
-            {!aiResults && (
+            {/* {!aiResults && (
               <div className="flex flex-wrap gap-2">
                 <span className="font-body text-xs text-white/30 py-1.5">Try:</span>
                 {AI_EXAMPLES.map(example => (
@@ -995,10 +1050,10 @@ export default function ProductsPage() {
                 ))}
               </div>
             )}
-          </div>
+          </div> */}
 
           {/* Loading state */}
-          {aiMutation.isPending && (
+          {/* {aiMutation.isPending && (
             <div className="flex flex-col items-center py-16 gap-4">
               <div className="relative w-16 h-16">
                 <div className="absolute inset-0 border-4 border-amber/20 rounded-full" />
@@ -1013,10 +1068,10 @@ export default function ProductsPage() {
                 </p>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Error state */}
-          {aiMutation.isError && (
+          {/* {aiMutation.isError && (
             <div className="text-center py-16 bg-white rounded-3xl border border-red-100">
               <p className="font-display font-600 text-xl text-ink mb-2">
                 Search failed
@@ -1026,20 +1081,20 @@ export default function ProductsPage() {
               </p>
               <Button onClick={() => handleAiSearch()} variant="secondary">Retry</Button>
             </div>
-          )}
+          )} */}
 
           {/* Results */}
-          {aiResults && !aiMutation.isPending && (
-            <>
+          {/* {aiResults && !aiMutation.isPending && (
+            <> */}
               {/* AI summary */}
-              <div className="bg-amber-pale border border-amber/30 rounded-2xl px-6 py-5 flex gap-4">
+              {/* <div className="bg-amber-pale border border-amber/30 rounded-2xl px-6 py-5 flex gap-4">
                 <Sparkles size={20} className="text-amber-dark flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-body text-ink leading-relaxed">
                     {aiResults.summary}
-                  </p>
+                  </p> */}
                    {/* {aiResults.parsed_intent?.use_cases?.length > 0 && ( -- take it out after confirming from claude*/}
-                  {aiResults.parsed_intent?.use_cases && aiResults.parsed_intent.use_cases.length > 0 && (
+                  {/* {aiResults.parsed_intent?.use_cases && aiResults.parsed_intent.use_cases.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-3">
                       {aiResults.parsed_intent.use_cases.map(uc => (
                         <span key={uc} className="text-xs font-body bg-amber/20 text-amber-dark px-2.5 py-1 rounded-full">
@@ -1059,7 +1114,7 @@ export default function ProductsPage() {
                     </p>
                   )}
                 </div>
-              </div>
+              </div> */}
 
               {/* // In the results section of the AI search UI, before the result cards: */}
               {/* {aiResults.fallback_used && (
@@ -1072,7 +1127,7 @@ export default function ProductsPage() {
               )} */}
 
               {/* Result cards */}
-              {aiResults.items.length === 0 ? (
+              {/* {aiResults.items.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-3xl border border-surface-dark">
                   <Search size={48} className="text-surface-dark mx-auto mb-4" />
                   <p className="font-display font-600 text-2xl text-ink mb-3">
@@ -1094,10 +1149,10 @@ export default function ProductsPage() {
                     <AIResultCard key={item.id} item={item} rank={index + 1} />
                   ))}
                 </div>
-              )}
+              )} */}
 
               {/* New search prompt */}
-              <div className="text-center pt-4 pb-2">
+              {/* <div className="text-center pt-4 pb-2">
                 <button
                   onClick={() => { setAiResults(null); setAiInput('') }}
                   className="font-body text-sm text-ink-faint hover:text-ink transition-colors underline underline-offset-4"
@@ -1108,7 +1163,35 @@ export default function ProductsPage() {
             </>
           )}
         </div>
+        
       )}
+
+      {/* ── AI search — coming soon ──────────────────────────────────────────── */}
+      {searchMode === 'ai' && (
+        <div className="flex flex-col items-center justify-center py-24 gap-6">
+          <div className="w-20 h-20 bg-ink rounded-3xl flex items-center justify-center">
+            <Zap size={36} className="text-amber" />
+          </div>
+          <div className="text-center max-w-md">
+            <h2 className="font-display font-700 text-3xl text-ink mb-3">
+              AI Search coming soon
+            </h2>
+            <p className="font-body text-ink-faint leading-relaxed">
+              Our AI-powered natural language search is currently being fine-tuned.
+              Soon you'll be able to search with plain English — like
+              <span className="font-500 text-ink"> "gaming laptop under ₦400k with RTX"</span>.
+            </p>
+          </div>
+          <button
+            onClick={() => setSearchMode('standard')}
+            className="font-body text-sm text-amber-dark hover:text-amber underline underline-offset-4 transition-colors"
+          >
+            Use standard search instead
+          </button>
+        </div>
+      )}
+      
+
     </div>
   )
 }

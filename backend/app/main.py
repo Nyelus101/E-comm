@@ -2,7 +2,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.services.elasticsearch_service import create_index
+# from app.services.elasticsearch_service import create_index
+from app.services.typesense_service import create_collection
 import app.models  # noqa — registers all models with SQLAlchemy
 
 # Import routers
@@ -31,11 +32,15 @@ app.add_middleware(
 # Wrapped in try/except so a slow ES startup doesn't crash the API.
 @app.on_event("startup")
 async def startup():
+    """
+    Creates the Typesense collection on startup if it doesn't exist.
+    Wrapped in try/except — a slow Typesense startup doesn't crash the API.
+    """
     try:
-        create_index()
+        create_collection()
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning(f"ES index creation deferred: {e}")
+        logging.getLogger(__name__).warning(f"Typesense collection creation deferred: {e}")
 
 # ─── Routers ─────────────────────────────────────────────────────────────────
 # prefix="/api/v1" means all routes become /api/v1/auth/login, etc.

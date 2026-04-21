@@ -6,18 +6,20 @@ import json
 import redis
 
 from app.database import get_db
-from app.services.elasticsearch_service import search_products, get_index_stats
+# from app.services.elasticsearch_service import search_products, get_index_stats
+from app.services.typesense_service import ( search_products, get_index_stats, reindex_all_products, get_top_searches_typesense, get_no_results_searches_typesense )
 from app.services.search_analytics import log_search, get_top_searches, get_zero_result_searches
 from app.dependencies import get_current_admin
 from app.models.user import User
 from app.config import settings
 
-from app.services.ai_search_service import run_ai_search
-from app.services.embedding_service import embed_all_products
-from pydantic import BaseModel
 
-class AISearchRequest(BaseModel):
-    query: str
+# ── AI search imports — commented out until AI search is re-enabled ──────────
+# from app.services.ai_search_service import run_ai_search
+# from app.services.embedding_service import embed_all_products
+# from pydantic import BaseModel
+# class AISearchRequest(BaseModel):
+#     query: str
 
 router = APIRouter(tags=["Search"])
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
@@ -103,22 +105,66 @@ async def standard_search(
 
 # ─── Admin: Search analytics ──────────────────────────────────────────────────
 
-@router.get(
-    "/admin/search/analytics",
-    summary="Search analytics (admin)",
-)
-def search_analytics(
-    current_admin: User = Depends(get_current_admin),
-):
+@router.get("/admin/search/analytics", summary="Search analytics (admin)")
+def search_analytics(current_admin: User = Depends(get_current_admin)):
     """
-    Returns search analytics for the admin dashboard.
-    - Top searched queries
-    - Queries that returned zero results (inventory signal)
+    Combines Typesense native analytics with Redis query logs.
+    Typesense tracks counts natively; Redis gives us per-query metadata.
     """
+    # Typesense native analytics (accurate counts)
+    ts_top     = get_top_searches_typesense(limit=20)
+    ts_no_hits = get_no_results_searches_typesense(limit=20)
+
+    # Redis supplementary analytics (richer metadata: timestamps, result counts)
+    redis_top     = get_top_searches(limit=20)
+    redis_no_hits = get_zero_result_searches(limit=20)
+
+    # Merge: prefer Typesense counts when available (more accurate),
+    # fall back to Redis when Typesense analytics not yet populated
+    top_searches = ts_top if ts_top else redis_top
+    zero_results = ts_no_hits if ts_no_hits else redis_no_hits
+
     return {
-        "top_searches":          get_top_searches(limit=20),
-        "zero_result_searches":  get_zero_result_searches(limit=20),
+        "top_searches":         top_searches,
+        "zero_result_searches": zero_results,
     }
+
+
+@router.post("/admin/search/reindex", summary="Reindex all products (admin)")
+def reindex(
+    db:            Session = Depends(get_db),
+    current_admin: User    = Depends(get_current_admin),
+):
+    count = reindex_all_products(db)
+    return {"message": f"Successfully indexed {count} products into Typesense."}
+
+
+# @router.post("/admin/search/embed-all", summary="Generate embeddings for all products (admin)")
+# async def embed_all(
+#     db:            Session = Depends(get_db),
+#     current_admin: User    = Depends(get_current_admin),
+# ):
+#     count = await embed_all_products(db)
+#     return {"message": f"Generated embeddings for {count} products."}
+
+
+
+# @router.get(
+#     "/admin/search/analytics",
+#     summary="Search analytics (admin)",
+# )
+# def search_analytics(
+#     current_admin: User = Depends(get_current_admin),
+# ):
+#     """
+#     Returns search analytics for the admin dashboard.
+#     - Top searched queries
+#     - Queries that returned zero results (inventory signal)
+#     """
+#     return {
+#         "top_searches":          get_top_searches(limit=20),
+#         "zero_result_searches":  get_zero_result_searches(limit=20),
+#     }
 
 
 @router.get(
@@ -132,22 +178,22 @@ def index_stats(
     return get_index_stats()
 
 
-@router.post(
-    "/admin/search/reindex",
-    summary="Reindex all products (admin)",
-)
-def reindex(
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin),
-):
-    """
-    Re-indexes every product from PostgreSQL into Elasticsearch.
-    Use this if the index gets out of sync — e.g. after bulk DB changes
-    or after recreating the index.
-    """
-    from app.services.elasticsearch_service import reindex_all_products
-    count = reindex_all_products(db)
-    return {"message": f"Successfully indexed {count} products."}
+# @router.post(
+#     "/admin/search/reindex",
+#     summary="Reindex all products (admin)",
+# )
+# def reindex(
+#     db: Session = Depends(get_db),
+#     current_admin: User = Depends(get_current_admin),
+# ):
+#     """
+#     Re-indexes every product from PostgreSQL into Elasticsearch.
+#     Use this if the index gets out of sync — e.g. after bulk DB changes
+#     or after recreating the index.
+#     """
+#     # from app.services.elasticsearch_service import reindex_all_products
+#     count = reindex_all_products(db)
+#     return {"message": f"Successfully indexed {count} products."}
 
 
 
@@ -160,49 +206,50 @@ def reindex(
 
 
 
+# ── AI search endpoint — disabled until AI search is re-enabled ───────────────
 
-@router.post("/search/ai", summary="AI-powered natural language search")
-async def ai_search(
-    request: AISearchRequest,
-    db: Session = Depends(get_db),
-):
-    """
-    Natural language search powered by Claude + pgvector + Elasticsearch.
+# @router.post("/search/ai", summary="AI-powered natural language search")
+# async def ai_search(
+#     request: AISearchRequest,
+#     db: Session = Depends(get_db),
+# ):
+#     """
+#     Natural language search powered by Claude + pgvector + Elasticsearch.
 
-    Send a plain English query and receive:
-    - Ranked laptop results merged from vector similarity and keyword search
-    - AI explanation for why each laptop matches your query
-    - Summary of what was found
+#     Send a plain English query and receive:
+#     - Ranked laptop results merged from vector similarity and keyword search
+#     - AI explanation for why each laptop matches your query
+#     - Summary of what was found
 
-    Examples:
-    - {"query": "gaming laptop under ₦400,000 with RTX GPU"}
-    - {"query": "lightweight laptop for a computer science student"}
-    - {"query": "best laptop for video editing under ₦600k"}
-    - {"query": "cheap laptop for browsing and office work"}
-    """
-    if not request.query.strip():
-        return {
-            "query": "",
-            "summary": "Please enter a search query.",
-            "items": [],
-            "total": 0,
-            "source": "ai_hybrid",
-        }
+#     Examples:
+#     - {"query": "gaming laptop under ₦400,000 with RTX GPU"}
+#     - {"query": "lightweight laptop for a computer science student"}
+#     - {"query": "best laptop for video editing under ₦600k"}
+#     - {"query": "cheap laptop for browsing and office work"}
+#     """
+#     if not request.query.strip():
+#         return {
+#             "query": "",
+#             "summary": "Please enter a search query.",
+#             "items": [],
+#             "total": 0,
+#             "source": "ai_hybrid",
+#         }
 
-    return await run_ai_search(query=request.query.strip(), db=db)
+#     return await run_ai_search(query=request.query.strip(), db=db)
 
-
-@router.post(
-    "/admin/search/embed-all",
-    summary="Generate embeddings for all products (admin)",
-)
-async def embed_all(
-    db: Session = Depends(get_db),
-    current_admin: User = Depends(get_current_admin),
-):
-    """
-    Generates vector embeddings for all products that don't have one.
-    Run this once after upgrading to Phase 7 to embed existing products.
-    """
-    count = await embed_all_products(db)
-    return {"message": f"Generated embeddings for {count} products."}
+# # ── Embed-all endpoint — disabled until AI search is re-enabled ───────────────
+# @router.post(
+#     "/admin/search/embed-all",
+#     summary="Generate embeddings for all products (admin)",
+# )
+# async def embed_all(
+#     db: Session = Depends(get_db),
+#     current_admin: User = Depends(get_current_admin),
+# ):
+#     """
+#     Generates vector embeddings for all products that don't have one.
+#     Run this once after upgrading to Phase 7 to embed existing products.
+#     """
+#     count = await embed_all_products(db)
+#     return {"message": f"Generated embeddings for {count} products."}

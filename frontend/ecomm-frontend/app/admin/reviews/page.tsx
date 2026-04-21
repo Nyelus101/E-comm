@@ -128,6 +128,12 @@ export default function AdminReviewsPage() {
                     </p>
                   )}
 
+                  {review.product_name && (
+                    <p className="font-body text-xs text-ink-faint mt-2">
+                      Laptop: <span className="font-500 text-ink">{review.product_name}</span>
+                    </p>
+                  )}
+
                   <p className="font-body text-xs text-ink-faint mt-3">
                     By <span className="font-500 text-ink">{review.reviewer_name}</span>
                     {review.reviewer_email && ` · ${review.reviewer_email}`}

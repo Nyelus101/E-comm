@@ -531,26 +531,16 @@ import asyncio
 
 from groq import Groq
 
-# ── CLAUDE ALTERNATIVE ────────────────────────────────────────────────────────
-# import anthropic
-# anthropic_client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-# FAST_MODEL = "claude-3-5-haiku-20241022"
-# def _call_llm(prompt: str, max_tokens: int = 2048) -> str:
-#     message = anthropic_client.messages.create(
-#         model=FAST_MODEL,
-#         max_tokens=max_tokens,
-#         messages=[{"role": "user", "content": prompt}],
-#     )
-#     return message.content[0].text.strip()
-# ─────────────────────────────────────────────────────────────────────────────
-
 from langgraph.graph import StateGraph, END
 from sqlalchemy.orm import Session
 import redis
 
 from app.services.embedding_service import generate_query_embedding
 from app.services.vector_search_service import vector_search
-from app.services.elasticsearch_service import search_products as es_search
+# from app.services.elasticsearch_service import search_products as es_search
+from app.services.typesense_service import ( hybrid_search_typesense, search_products as ts_keyword_search )
+from app.services.embedding_service import generate_query_embedding
+from app.services.vector_search_service import vector_search as pgvector_search
 from app.services.search_analytics import log_search
 from app.config import settings
 
@@ -572,15 +562,6 @@ def _call_llm(prompt: str, max_tokens: int = 2048) -> str:
 
     temperature=0.1 keeps JSON output consistent.
     temperature=0.4 for explanations gives slightly more natural language.
-
-    ── CLAUDE ALTERNATIVE ────────────────────────────────────────────────────
-    Replace body with:
-        message = anthropic_client.messages.create(
-            model=FAST_MODEL,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return message.content[0].text.strip()
     ─────────────────────────────────────────────────────────────────────────
     """
     response = groq_client.chat.completions.create(
@@ -691,11 +672,6 @@ def reason_about_query(state: AISearchState) -> AISearchState:
     - Separates "what they asked for" from "what would satisfy them"
     - Identifies when a request is likely impossible (very low budget)
       and adjusts expectations accordingly
-
-    ── CLAUDE ALTERNATIVE ────────────────────────────────────────────────────
-    Same prompt, replace _call_llm() with _call_claude().
-    Claude 3.5 Haiku produces slightly cleaner JSON here but Llama 70b
-    works well with the explicit schema instructions below.
     ─────────────────────────────────────────────────────────────────────────
     """
     query = state["raw_query"]
@@ -930,14 +906,13 @@ async def execute_search_strategies(state: AISearchState, db: Session) -> AISear
         "fallback_message":  fallback_msg,
     }
 
-
-async def _execute_single_strategy(
-    strategy: dict,
-    db: Session,
-) -> List[dict]:
+async def _execute_single_strategy(strategy: dict, db: Session) -> List[dict]:
     """
-    Runs one strategy through both vector search and Elasticsearch,
-    merges with RRF, and returns deduplicated results.
+    Runs one strategy using Typesense native hybrid search as primary,
+    with pgvector as a supplementary signal for re-ranking.
+
+    Typesense hybrid search (BM25 + vector in one query) replaces the
+    separate ES + pgvector calls we had with Elasticsearch.
     """
     sq          = strategy.get("search_query", "laptop")
     brand       = strategy.get("brand")
@@ -946,27 +921,45 @@ async def _execute_single_strategy(
     min_ram     = strategy.get("min_ram")
     gpu_keyword = strategy.get("gpu_keyword")
 
-    # ── Vector search ─────────────────────────────────────────────────────────
-    vec_results: List[dict] = []
-    try:
-        embedding = await generate_query_embedding(sq)
-        if embedding:
-            vec_results = vector_search(
-                query_embedding=embedding,
-                db=db,
-                limit=10,
-                min_price=min_price,
-                max_price=max_price,
-                min_ram=min_ram,
-                brand=brand,
-            )
-    except Exception as e:
-        logger.error(f"Vector search error in strategy: {e}")
+    # Generate query embedding for hybrid search
+    query_embedding = await generate_query_embedding(sq)
 
-    # ── Elasticsearch search ───────────────────────────────────────────────────
-    es_results: List[dict] = []
-    try:
-        es_result = es_search(
+    if query_embedding:
+        # PRIMARY: Typesense native hybrid (BM25 + vector, alpha=0.6)
+        # One call, handles both semantic and keyword matching
+        results = hybrid_search_typesense(
+            query_text=sq,
+            query_embedding=query_embedding,
+            brand=brand,
+            min_price=min_price,
+            max_price=max_price,
+            min_ram=min_ram,
+            gpu_keyword=gpu_keyword,
+            limit=12,
+        )
+
+        # SUPPLEMENTARY: pgvector for additional semantic signal
+        # Merge with RRF to surface items that vector search ranks highly
+        # but Typesense keyword matching may have ranked lower
+        pgvec_results = pgvector_search(
+            query_embedding=query_embedding,
+            db=db,
+            limit=8,
+            min_price=min_price,
+            max_price=max_price,
+            min_ram=min_ram,
+            brand=brand,
+        )
+
+        # Merge the two lists with RRF
+        merged = _rrf_merge_two_lists(results, pgvec_results)
+        return merged
+
+    else:
+        # No embedding available (Voyage AI not configured) —
+        # fall back to pure Typesense keyword search
+        logger.warning("No embedding available, using keyword-only search")
+        return ts_keyword_search(
             query=sq,
             brand=brand,
             min_price=min_price,
@@ -974,35 +967,8 @@ async def _execute_single_strategy(
             min_ram=min_ram,
             gpu_keyword=gpu_keyword,
             page=1,
-            page_size=10,
-            sort_by="relevance",
-        )
-        es_results = es_result.get("items", [])
-    except Exception as e:
-        logger.error(f"ES search error in strategy: {e}")
-
-    # ── If brand was set but ES found nothing, retry ES without brand ─────────
-    # This handles cases where the brand name in our DB doesn't exactly match
-    # what the LLM extracted (e.g. "Apple Inc." vs "Apple")
-    if brand and len(es_results) == 0 and len(vec_results) > 0:
-        try:
-            es_result_no_brand = es_search(
-                query=f"{brand} {sq}",   # fold brand into query text instead
-                brand=None,
-                min_price=min_price,
-                max_price=max_price,
-                min_ram=min_ram,
-                gpu_keyword=gpu_keyword,
-                page=1,
-                page_size=10,
-                sort_by="relevance",
-            )
-            es_results = es_result_no_brand.get("items", [])
-        except Exception as e:
-            logger.error(f"ES brand-folded retry error: {e}")
-
-    return _rrf_merge_two_lists(vec_results, es_results)
-
+            page_size=12,
+        ).get("items", [])
 
 def _rrf_merge_two_lists(
     list_a: List[dict],
@@ -1051,9 +1017,6 @@ def generate_explanations(state: AISearchState) -> AISearchState:
       explains WHY each laptop is still a good option
     - Compares each laptop to what the user actually asked for
     - Includes price context (over/under budget, value proposition)
-
-    ── CLAUDE ALTERNATIVE ────────────────────────────────────────────────────
-    Same prompt, replace _call_llm_creative() with _call_claude().
     ─────────────────────────────────────────────────────────────────────────
     """
     products      = state["raw_results"]
@@ -1102,83 +1065,83 @@ def generate_explanations(state: AISearchState) -> AISearchState:
     fallback_instruction = ""
     if fallback_used:
         fallback_instruction = f"""
-IMPORTANT: The exact match was not available. You MUST:
-1. Acknowledge this honestly in the summary (don't pretend these are perfect matches)
-2. For each laptop, explain how it relates to what they asked for despite not being exact
-3. Highlight the closest matches and why they're still good options
-4. Be helpful and commercial — guide them toward a decision, don't just say "not found"
-"""
+    IMPORTANT: The exact match was not available. You MUST:
+    1. Acknowledge this honestly in the summary (don't pretend these are perfect matches)
+    2. For each laptop, explain how it relates to what they asked for despite not being exact
+    3. Highlight the closest matches and why they're still good options
+    4. Be helpful and commercial — guide them toward a decision, don't just say "not found"
+    """
 
-    prompt = f"""You are a knowledgeable, honest laptop sales advisor at a Nigerian store.
+        prompt = f"""You are a knowledgeable, honest laptop sales advisor at a Nigerian store.
 
-CUSTOMER'S REQUEST: "{query}"
-WHAT THEY NEED: {need_summary}
-USE CASES: {use_cases}
-BUDGET: {budget_str}
-{fallback_instruction}
+    CUSTOMER'S REQUEST: "{query}"
+    WHAT THEY NEED: {need_summary}
+    USE CASES: {use_cases}
+    BUDGET: {budget_str}
+    {fallback_instruction}
 
-AVAILABLE LAPTOPS:
-{product_text}
+    AVAILABLE LAPTOPS:
+    {product_text}
 
-Write a JSON response. ONLY valid JSON, nothing else.
+    Write a JSON response. ONLY valid JSON, nothing else.
 
-{{
-  "summary": "<2-3 sentences: honest assessment of how well these results match the request. If fallback was used, acknowledge it but focus on what IS available and why it's still worth considering>",
-  "explanations": [
     {{
-      "rank": 1,
-      "explanation": "<2-3 sentences: specific to this customer's stated need. Mention exact specs that match. If over/under budget, address it directly. Make it helpful for a buying decision.>",
-      "match_quality": "<'exact' | 'close' | 'alternative'>"
+    "summary": "<2-3 sentences: honest assessment of how well these results match the request. If fallback was used, acknowledge it but focus on what IS available and why it's still worth considering>",
+    "explanations": [
+        {{
+        "rank": 1,
+        "explanation": "<2-3 sentences: specific to this customer's stated need. Mention exact specs that match. If over/under budget, address it directly. Make it helpful for a buying decision.>",
+        "match_quality": "<'exact' | 'close' | 'alternative'>"
+        }}
+    ]
     }}
-  ]
-}}
 
-Rules:
-- Use ₦ with commas for all prices
-- Be specific — "the M3 chip handles your work tasks efficiently" not "great performance"
-- If a laptop is over budget, acknowledge it and give a reason it might still be worth it
-- If a laptop is under budget, mention the savings
-- match_quality: 'exact' = matches all requirements, 'close' = matches most, 'alternative' = different but suitable
-- Write exactly {len(products)} explanation objects
-- Sound like a trusted friend who knows laptops, not a salesperson"""
+    Rules:
+    - Use ₦ with commas for all prices
+    - Be specific — "the M3 chip handles your work tasks efficiently" not "great performance"
+    - If a laptop is over budget, acknowledge it and give a reason it might still be worth it
+    - If a laptop is under budget, mention the savings
+    - match_quality: 'exact' = matches all requirements, 'close' = matches most, 'alternative' = different but suitable
+    - Write exactly {len(products)} explanation objects
+    - Sound like a trusted friend who knows laptops, not a salesperson"""
 
-    try:
-        raw         = _call_llm_creative(prompt, max_tokens=1500)
-        ai_response = _parse_json(raw)
+        try:
+            raw         = _call_llm_creative(prompt, max_tokens=1500)
+            ai_response = _parse_json(raw)
 
-    except Exception as e:
-        logger.error(f"Explanation generation failed: {e}")
-        ai_response = {
-            "summary":      fallback_msg or f"Found {len(products)} laptops that may match your needs.",
-            "explanations": [
-                {"rank": i + 1, "explanation": "", "match_quality": "alternative"}
-                for i in range(len(products))
-            ],
+        except Exception as e:
+            logger.error(f"Explanation generation failed: {e}")
+            ai_response = {
+                "summary":      fallback_msg or f"Found {len(products)} laptops that may match your needs.",
+                "explanations": [
+                    {"rank": i + 1, "explanation": "", "match_quality": "alternative"}
+                    for i in range(len(products))
+                ],
+            }
+
+        explanation_map = {
+            item["rank"]: item
+            for item in ai_response.get("explanations", [])
         }
 
-    explanation_map = {
-        item["rank"]: item
-        for item in ai_response.get("explanations", [])
-    }
+        explained = []
+        for i, product in enumerate(products):
+            copy = product.copy()
+            exp  = explanation_map.get(i + 1, {})
+            copy["ai_explanation"] = exp.get("explanation", "")
+            copy["match_quality"]  = exp.get("match_quality", "alternative")
+            explained.append(copy)
 
-    explained = []
-    for i, product in enumerate(products):
-        copy = product.copy()
-        exp  = explanation_map.get(i + 1, {})
-        copy["ai_explanation"] = exp.get("explanation", "")
-        copy["match_quality"]  = exp.get("match_quality", "alternative")
-        explained.append(copy)
+        # If fallback was used, prepend the honest fallback message to the summary
+        summary = ai_response.get("summary", "")
+        if fallback_used and fallback_msg and fallback_msg not in summary:
+            summary = f"{fallback_msg} {summary}"
 
-    # If fallback was used, prepend the honest fallback message to the summary
-    summary = ai_response.get("summary", "")
-    if fallback_used and fallback_msg and fallback_msg not in summary:
-        summary = f"{fallback_msg} {summary}"
-
-    return {
-        **state,
-        "explained_results": explained,
-        "summary":           summary,
-    }
+        return {
+            **state,
+            "explained_results": explained,
+            "summary":           summary,
+        }
 
 
 # ─── Pipeline entrypoint ──────────────────────────────────────────────────────
@@ -1186,11 +1149,6 @@ Rules:
 async def run_ai_search(query: str, db: Session) -> dict:
     """
     Main entry point. Checks Redis cache, runs pipeline, caches result.
-
-    ── CLAUDE ALTERNATIVE ────────────────────────────────────────────────────
-    No changes needed here. The pipeline nodes call _call_llm() internally.
-    To switch to Claude: update _call_llm() and _call_llm_creative() above.
-    ─────────────────────────────────────────────────────────────────────────
     """
     # Cache check
     cache_key = f"search:ai:v2:{query.strip().lower()}"

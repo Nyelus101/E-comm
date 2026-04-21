@@ -5,7 +5,23 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
 from app.database import Base
-from pgvector.sqlalchemy import Vector
+# from pgvector.sqlalchemy import Vector
+
+
+# With:
+# ── pgvector embedding — disabled until AI search is re-enabled ───────────────
+# from pgvector.sqlalchemy import Vector
+# embedding = Column(Vector(1024), nullable=True)
+# To re-enable:
+#   1. Uncomment the two lines above
+#   2. Run: alembic revision --autogenerate -m "re-enable embedding column"
+#   3. Run: alembic upgrade head
+#   4. Uncomment AI search endpoints in routers/search.py
+#   5. Uncomment AI imports in services/product_service.py
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+
 
 
 class Product(Base):
@@ -71,7 +87,7 @@ class Product(Base):
 
 
     # 1024 = Voyage AI's voyage-2 embedding dimension
-    embedding = Column(Vector(1024), nullable=True)
+    # embedding = Column(Vector(1024), nullable=True)
     # nullable=True — products created before AI phase have no embedding yet
 
     def __repr__(self):

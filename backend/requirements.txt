@@ -15,7 +15,7 @@ uvicorn[standard]==0.30.6
 sqlalchemy==2.0.36
 alembic==1.13.3
 psycopg2-binary==2.9.9       # PostgreSQL driver
-pgvector==0.3.2
+# pgvector==0.3.2
 
 # ─── Auth & Security ─────────────────────────
 # python-jose[cryptography]==3.3.0   # JWT tokens
@@ -51,18 +51,26 @@ email-validator==2.0.0
 
 
 # ─── Search ──────────────────────────────────────
-elasticsearch==8.13.0
+# elasticsearch==8.13.0
+# ─── Search — Typesense (replaces elasticsearch) ─────────────────────────────
+typesense==0.21.0
 
 
-# ─── AI ──────────────────────────────────────────
-groq==0.11.0                     # Groq LLM API (free)
+# ─── AI / LangGraph ──────────────────────────────────────────
+# groq==0.11.0                     # Groq LLM API (free)
 # sentence-transformers==3.0.1     # Local embeddings (free)
 # torch==2.4.1                     # Required by sentence-transformers
-numpy==1.26.4
-langgraph==0.2.28
-langchain-core==0.3.15
+# numpy==1.26.4
+# langgraph==0.2.28
+# langchain-core==0.3.15
+# langchain-core>=0.3.75,<0.4
 
 # ─── Commented out — switch back when needed ─────
 # anthropic==0.37.1              # Claude API
 # langchain-anthropic==0.2.4     # LangChain Claude integration
 # (Voyage AI uses httpx — no package, just API key)
+
+
+# ─── Embeddings — Voyage AI official SDK (replaces raw httpx calls) ──────────
+# voyageai==0.3.7
+# numpy==1.26.4
