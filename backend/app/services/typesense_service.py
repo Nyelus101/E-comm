@@ -23,11 +23,11 @@ import typesense
 import logging
 from typing import Optional, List, Dict, Any
 from app.config import settings
-from app.services.embedding_service import (
-    generate_embedding_sync,
-    generate_query_embedding_sync,
-    _build_product_text,
-)
+# from app.services.embedding_service import (
+#     generate_embedding_sync,
+#     generate_query_embedding_sync,
+#     _build_product_text,
+# )
 
 logger = logging.getLogger(__name__)
 
