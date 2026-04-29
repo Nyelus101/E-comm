@@ -150,117 +150,137 @@
 
 
 
-# backend/app/services/vector_search_service.py
-"""
-pgvector similarity search — used as a supplementary search path
-in the AI pipeline alongside Typesense hybrid search.
-"""
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from typing import Optional, List
-import logging
+# # backend/app/services/vector_search_service.py
+# """
+# pgvector similarity search — used as a supplementary search path
+# in the AI pipeline alongside Typesense hybrid search.
+# """
+# from sqlalchemy.orm import Session
+# from sqlalchemy import text
+# from typing import Optional, List
+# import logging
 
-logger = logging.getLogger(__name__)
+# logger = logging.getLogger(__name__)
 
 
-def vector_search(
-    query_embedding: List[float],
-    db:              Session,
-    limit:           int            = 15,
-    min_price:       Optional[float] = None,
-    max_price:       Optional[float] = None,
-    min_ram:         Optional[int]   = None,
-    brand:           Optional[str]   = None,
-) -> List[dict]:
-    """
-    Cosine similarity search using pgvector.
-    Used in the AI pipeline as a secondary signal alongside Typesense.
+# def vector_search(
+#     query_embedding: List[float],
+#     db:              Session,
+#     limit:           int            = 15,
+#     min_price:       Optional[float] = None,
+#     max_price:       Optional[float] = None,
+#     min_ram:         Optional[int]   = None,
+#     brand:           Optional[str]   = None,
+# ) -> List[dict]:
+#     """
+#     Cosine similarity search using pgvector.
+#     Used in the AI pipeline as a secondary signal alongside Typesense.
 
-    Returns products ordered by semantic similarity to the query embedding.
-    """
-    conditions = [
-        "is_available = TRUE",
-        "embedding IS NOT NULL",
-    ]
-    params: dict = {
-        "embedding": str(query_embedding),
-        "limit":     limit,
-    }
+#     Returns products ordered by semantic similarity to the query embedding.
+#     """
+#     conditions = [
+#         "is_available = TRUE",
+#         "embedding IS NOT NULL",
+#     ]
+#     params: dict = {
+#         "embedding": str(query_embedding),
+#         "limit":     limit,
+#     }
 
-    if min_price is not None:
-        conditions.append("price >= :min_price")
-        params["min_price"] = min_price
+#     if min_price is not None:
+#         conditions.append("price >= :min_price")
+#         params["min_price"] = min_price
 
-    if max_price is not None:
-        conditions.append("price <= :max_price")
-        params["max_price"] = max_price
+#     if max_price is not None:
+#         conditions.append("price <= :max_price")
+#         params["max_price"] = max_price
 
-    if min_ram is not None:
-        conditions.append("ram_gb >= :min_ram")
-        params["min_ram"] = min_ram
+#     if min_ram is not None:
+#         conditions.append("ram_gb >= :min_ram")
+#         params["min_ram"] = min_ram
 
-    if brand:
-        conditions.append("LOWER(brand) LIKE :brand")
-        params["brand"] = f"%{brand.lower()}%"
+#     if brand:
+#         conditions.append("LOWER(brand) LIKE :brand")
+#         params["brand"] = f"%{brand.lower()}%"
 
-    where_clause = " AND ".join(conditions)
+#     where_clause = " AND ".join(conditions)
 
-    sql = text(f"""
-        SELECT
-            id::text        AS product_id,
-            name,
-            brand,
-            slug,
-            cpu,
-            gpu,
-            ram_gb,
-            storage_gb,
-            storage_type,
-            price::float,
-            original_price::float,
-            stock_quantity,
-            is_available,
-            is_featured,
-            thumbnail_url,
-            images,
-            tags,
-            description,
-            view_count,
-            1 - (embedding <=> :embedding::vector) AS similarity_score
-        FROM products
-        WHERE {where_clause}
-        ORDER BY embedding <=> :embedding::vector
-        LIMIT :limit
-    """)
+#     sql = text(f"""
+#         SELECT
+#             id::text        AS product_id,
+#             name,
+#             brand,
+#             slug,
+#             cpu,
+#             gpu,
+#             ram_gb,
+#             storage_gb,
+#             storage_type,
+#             price::float,
+#             original_price::float,
+#             stock_quantity,
+#             is_available,
+#             is_featured,
+#             thumbnail_url,
+#             images,
+#             tags,
+#             description,
+#             view_count,
+#             1 - (embedding <=> :embedding::vector) AS similarity_score
+#         FROM products
+#         WHERE {where_clause}
+#         ORDER BY embedding <=> :embedding::vector
+#         LIMIT :limit
+#     """)
 
-    try:
-        rows     = db.execute(sql, params).fetchall()
-        products = []
-        for row in rows:
-            products.append({
-                "id":              row.product_id,   # UUID string
-                "name":            row.name,
-                "brand":           row.brand,
-                "slug":            row.slug,
-                "cpu":             row.cpu,
-                "gpu":             row.gpu,
-                "ram_gb":          row.ram_gb,
-                "storage_gb":      row.storage_gb,
-                "storage_type":    row.storage_type,
-                "price":           str(row.price),
-                "original_price":  str(row.original_price) if row.original_price else None,
-                "stock_quantity":  row.stock_quantity,
-                "is_available":    row.is_available,
-                "is_featured":     row.is_featured,
-                "thumbnail_url":   row.thumbnail_url,
-                "images":          row.images or [],
-                "tags":            row.tags or [],
-                "description":     row.description,
-                "view_count":      row.view_count,
-                "similarity_score": float(row.similarity_score),
-                "_source":         "pgvector",
-            })
-        return products
-    except Exception as e:
-        logger.error(f"pgvector search failed: {e}")
-        return []
+#     try:
+#         rows     = db.execute(sql, params).fetchall()
+#         products = []
+#         for row in rows:
+#             products.append({
+#                 "id":              row.product_id,   # UUID string
+#                 "name":            row.name,
+#                 "brand":           row.brand,
+#                 "slug":            row.slug,
+#                 "cpu":             row.cpu,
+#                 "gpu":             row.gpu,
+#                 "ram_gb":          row.ram_gb,
+#                 "storage_gb":      row.storage_gb,
+#                 "storage_type":    row.storage_type,
+#                 "price":           str(row.price),
+#                 "original_price":  str(row.original_price) if row.original_price else None,
+#                 "stock_quantity":  row.stock_quantity,
+#                 "is_available":    row.is_available,
+#                 "is_featured":     row.is_featured,
+#                 "thumbnail_url":   row.thumbnail_url,
+#                 "images":          row.images or [],
+#                 "tags":            row.tags or [],
+#                 "description":     row.description,
+#                 "view_count":      row.view_count,
+#                 "similarity_score": float(row.similarity_score),
+#                 "_source":         "pgvector",
+#             })
+#         return products
+#     except Exception as e:
+#         logger.error(f"pgvector search failed: {e}")
+#         return [].
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Placeholder so imports don't break
+def vector_search(*args, **kwargs):
+    return []

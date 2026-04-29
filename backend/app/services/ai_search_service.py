@@ -1207,3 +1207,47 @@
 
 #     log_search(query=query, results_count=len(final_state["explained_results"]), search_type="ai")
 #     return result
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# backend/app/services/ai_search_service.py
+# ── Entire file commented out — re-enable with AI search ─────────────────────
+# To re-enable:
+#   1. Uncomment requirements: voyageai, numpy, langgraph, langchain-core, groq
+#   2. Uncomment pgvector in models/product.py and requirements.txt
+#   3. Add VOYAGE_API_KEY and GROQ_API_KEY to environment
+#   4. Uncomment the AI endpoint in routers/search.py
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Placeholder so imports don't break if anything references this module
+async def run_ai_search(query: str, db) -> dict:
+    return {
+        "query":   query,
+        "summary": "AI search is not yet enabled.",
+        "items":   [],
+        "total":   0,
+        "source":  "disabled",
+    }

@@ -25,7 +25,7 @@ router = APIRouter(tags=["Search"])
 redis_client = redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
-@router.get("/search", summary="Standard search (Elasticsearch)")
+@router.get("/search", summary="Standard search (Typesense)")
 async def standard_search(
     q: Optional[str]   = Query(default=None, description="Full-text search query"),
     brand: Optional[str]  = Query(default=None),
@@ -44,7 +44,7 @@ async def standard_search(
     page_size: int = Query(default=20, ge=1, le=100),
 ):
     """
-    Full-text search powered by Elasticsearch.
+    Full-text search powered by Typesense.
 
     Supports fuzzy matching — typos like "Delll" still match "Dell".
     Text query searches: name, brand, CPU, GPU, description, tags.
@@ -169,7 +169,7 @@ def reindex(
 
 @router.get(
     "/admin/search/index-stats",
-    summary="Elasticsearch index stats (admin)",
+    summary="Typesense index stats (admin)",
 )
 def index_stats(
     current_admin: User = Depends(get_current_admin),
@@ -187,11 +187,11 @@ def index_stats(
 #     current_admin: User = Depends(get_current_admin),
 # ):
 #     """
-#     Re-indexes every product from PostgreSQL into Elasticsearch.
+#     Re-indexes every product from PostgreSQL into Typesense.
 #     Use this if the index gets out of sync — e.g. after bulk DB changes
 #     or after recreating the index.
 #     """
-#     # from app.services.elasticsearch_service import reindex_all_products
+#     # from app.services.typesense_service import reindex_all_products
 #     count = reindex_all_products(db)
 #     return {"message": f"Successfully indexed {count} products."}
 
@@ -214,7 +214,7 @@ def index_stats(
 #     db: Session = Depends(get_db),
 # ):
 #     """
-#     Natural language search powered by Claude + pgvector + Elasticsearch.
+#     Natural language search powered by Claude + pgvector + Typesense.
 
 #     Send a plain English query and receive:
 #     - Ranked laptop results merged from vector similarity and keyword search

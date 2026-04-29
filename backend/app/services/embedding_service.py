@@ -394,3 +394,40 @@
 
 #     logger.info(f"Generated embeddings for {count}/{len(products)} products")
 #     return count
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# backend/app/services/embedding_service.py
+# ── Entire file commented out — re-enable with AI search ─────────────────────
+
+# Placeholder functions so nothing breaks
+async def generate_embedding(text: str):
+    return None
+
+async def generate_query_embedding(query: str):
+    return None
+
+async def embed_and_store_product(product, db):
+    return None
+
+async def embed_all_products(db) -> int:
+    return 0
