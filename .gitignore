@@ -1,6 +1,7 @@
 # ENV FILES
 .env
 .env.*
+.env.prod
 !.env.example
 
 # PYTHON

@@ -25,6 +25,7 @@ services:
   typesense:
     image: typesense/typesense:0.25.2
     container_name: laptop_typesense
+    # restart: unless-stopped
     ports:
       - "8108:8108"
     volumes:
